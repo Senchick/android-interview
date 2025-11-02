@@ -8,8 +8,7 @@ _Источники: [Android Interview Questions](https://github.com/amitshekha
 ## Оглавление
 
 * [Kotlin](/section/kotlin.md)
-* [Kotlin Coroutines](/section/kotlin-coroutines.md)
-* [Kotlin Flow](/section/kotlin-flow.md)
+* [Kotlin Coroutines, Flow](/section/kotlin-coroutines-flow.md)
 * [Android](/section/android.md)
 * [Jetpack Compose](/section/jetpack-compose.md)
 * [Jetpack Compose Stability](/section/jetpack-compose-stability.md)

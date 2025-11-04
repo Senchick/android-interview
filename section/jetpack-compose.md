@@ -83,3 +83,176 @@
     - **Избегание prop drilling:** Упрощает передачу данных в глубоко вложенные компоненты.
     - **Доступ к данным окружения:** Идеально подходит для тем, локализации и других настроек, которые должны быть доступны во всем приложении.
     - **Пользовательские CompositionLocal:** Возможность создания собственных объектов CompositionLocal для управления специфичными для приложения данными.
+
+- #### Базовые компоненты в Jetpack Compose?
+  - **Row**. Горизонтальный контейнер, размещает элементы в одну строку.  
+    ```kotlin
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("A")
+        Text("B")
+        Text("C")
+    }
+    ```
+
+  - **Column**. Вертикальный контейнер, размещает элементы сверху вниз.  
+    ```kotlin
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("Item 1")
+        Text("Item 2")
+        Text("Item 3")
+    }
+    ```
+
+  - **Box**. Наложение элементов друг на друга, управление позиционированием через `Modifier.align`.  
+    ```kotlin
+    Box(Modifier.size(100.dp)) {
+        Text("Bottom", Modifier.align(Alignment.BottomEnd))
+        Text("Top", Modifier.align(Alignment.TopStart))
+    }
+    ```
+
+  - **Spacer**. Пустой элемент для отступов или разделения.  
+    ```kotlin
+    Column {
+        Text("Top")
+        Spacer(Modifier.height(16.dp))
+        Text("Bottom")
+    }
+    ```
+
+- #### Адаптивные компоненты в Compose?
+  **BoxWithConstraints**. Как `Box`, но предоставляет доступ к `maxWidth`, `maxHeight` и другим ограничениям. Позволяет адаптировать контент под доступное место.  
+    ```kotlin
+    @Composable
+    fun AdaptiveCard() = BoxWithConstraints {
+        if (maxWidth < 400.dp) CompactCard() else WideCard()
+    }
+    ```
+
+- #### Что такое FlowRow и FlowColumn?
+  - **FlowRow** / **FlowColumn**. Автоматически переносят элементы на новую строку или колонку при нехватке места.  
+    ```kotlin
+    @OptIn(ExperimentalLayoutApi::class)
+    @Composable
+    fun Chips(tags: List<String>) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            tags.forEach { Text(it, Modifier.background(Color.LightGray).padding(4.dp)) }
+        }
+    }
+    ```
+
+- #### Какие есть альтернативы ConstraintLayout?
+  - **LazyColumn**. Вертикальный список с ленивой и умной подгрузкой элементов.  
+    ```kotlin
+    @Composable
+    fun MessagesList(messages: List<String>) {
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(16.dp)
+        ) {
+            items(messages) { msg -> Text(msg) }
+        }
+    }
+    ```
+
+  - **LazyRow**. Горизонтальный список с ленивой и умной подгрузкой элементов.  
+    ```kotlin
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(10) { index -> Text("Item $index") }
+    }
+    ```
+  - **LazyVerticalGrid**. Ленивый грид по вертикали.  
+    ```kotlin
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 120.dp),
+        contentPadding = PaddingValues(8.dp)
+    ) {
+        items(20) { i ->
+            Box(Modifier.size(100.dp).background(Color.Gray)) { Text("$i") }
+        }
+    }
+    ```
+
+  - **LazyHorizontalGrid**. Аналогичный грид, но по горизонтали.  
+    ```kotlin
+    LazyHorizontalGrid(rows = GridCells.Fixed(2)) {
+        items(10) { i -> Text("Item $i") }
+    }
+    ```
+
+  - **ConstraintLayout**. Позволяет задавать связи между элементами и родителем, создавать гибкие интерфейсы. 
+    > Возможно, что устарел и использовать его крайне не рекомендуется, из-за того, что обход дерева происходит дважды.
+    ```kotlin
+    @Composable
+    fun Header() {
+        ConstraintLayout {
+            val (avatar, name, button) = createRefs()
+            Image(
+                painterResource(id = R.drawable.ic_avatar),
+                null,
+                Modifier.size(48.dp).constrainAs(avatar) {
+                    start.linkTo(parent.start)
+                    top.linkTo(parent.top)
+                }
+            )
+            Text("Ada Lovelace", Modifier.constrainAs(name) {
+                start.linkTo(avatar.end, margin = 8.dp)
+                centerVerticallyTo(avatar)
+            })
+            Button(onClick = {}, Modifier.constrainAs(button) {
+                end.linkTo(parent.end)
+                centerVerticallyTo(avatar)
+            }) { Text("Follow") }
+        }
+    }
+    ```
+
+- #### Что такое Layout и SubcomposeLayout? 
+    > Информация может быть неточной или неполной. Какой-то код может устареть
+  - **Layout**. Позволяет реализовать собственную стратегию измерения и позиционирования.  
+    ```kotlin
+    @Composable
+    fun OverlapLayout(overlap: Dp = 16.dp, content: @Composable () -> Unit) =
+        Layout(content = content) { measurables, constraints ->
+            val placeables = measurables.map { it.measure(constraints) }
+            val width = placeables.sumOf { it.width } -
+                overlap.roundToPx() * (placeables.size - 1)
+            val height = placeables.maxOfOrNull { it.height } ?: 0
+            layout(width, height) {
+                var x = 0
+                placeables.forEach {
+                    it.placeRelative(x, 0)
+                    x += it.width - overlap.roundToPx()
+                }
+            }
+        }
+    ```
+
+  - **SubcomposeLayout**. Позволяет сабкомпозировать дочерние элементы во время измерения. Используется, если контент одного блока зависит от размеров другого.  
+    ```kotlin
+    @Composable
+    fun BadgeLayout(main: @Composable () -> Unit, badge: @Composable (IntSize) -> Unit) {
+        SubcomposeLayout { constraints ->
+            val mainPlaceables = subcompose("main", main).map { it.measure(constraints) }
+            val size = IntSize(
+                width = mainPlaceables.maxOf { it.width },
+                height = mainPlaceables.maxOf { it.height }
+            )
+            val badgePlaceables = subcompose("badge") { badge(size) }.map { it.measure(Constraints()) }
+            layout(size.width, size.height) {
+                mainPlaceables.forEach { it.placeRelative(0, 0) }
+                badgePlaceables.forEach { it.placeRelative(size.width - it.width, 0) }
+            }
+        }
+    }
+    ```
+

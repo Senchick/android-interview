@@ -27,11 +27,63 @@
 
 
 - #### `coroutineScope`, `coroutineContext`, `job`, `interface CoroutineScope`, `fun CoroutineScope`
-    - **coroutineScope**. Это функция-билдер, которая создает новую область видимости корутины. Все корутины, запущенные внутри этой области, должны быть завершены, прежде чем coroutineScope вернет управление вызывающей стороне. Это полезно для структурирования кода и управления жизненным циклом группы корутин.
-    - **coroutineContext**. Это свойство, доступное внутри корутины, которое содержит контекст выполнения корутины, включая Job и Dispatcher. Контекст корутины управляет поведением корутины, например, в каком потоке она будет выполняться и как должны быть обработаны исключения.
-    - **Job**. Это ключевой компонент в системе корутин Kotlin, который представляет собой отдельную задачу, выполнение которой может быть отменено. Job позволяет управлять жизненным циклом корутины, включая ее отмену и завершение.
-    - **interface CoroutineScope**.
-    - **fun CoroutineScope**.
+    - **coroutineScope**. Это функция-билдер, которая создает новую область видимости корутины. Все корутины, запущенные внутри этой области, должны быть завершены, прежде чем `coroutineScope` вернет управление вызывающей стороне. Это полезно для структурирования кода и управления жизненным циклом группы корутин.
+
+      ```kotlin
+      suspend fun load(): Data = coroutineScope {
+          val a = async { fetchA() }
+          val b = async { fetchB() }
+          Data(a.await(), b.await())
+      }
+      ```
+
+    - **coroutineContext**. Это свойство, доступное внутри корутины, которое содержит контекст выполнения корутины, включая `Job` и `Dispatcher`. Контекст управляет потоком выполнения, отменой и обработкой исключений.
+
+      ```kotlin
+      suspend fun work() = withContext(CoroutineName("Worker")) {
+          val name = coroutineContext[CoroutineName]?.name // "Worker"
+          withContext(Dispatchers.IO) { repo.read() }
+      }
+      ```
+
+    - **Job**. Это ключевой компонент в системе корутин Kotlin, который представляет отдельную задачу, выполнение которой может быть отменено. `Job` позволяет управлять жизненным циклом корутины, включая отмену и ожидание завершения.
+
+      ```kotlin
+      val parent = Job()
+      val scope = CoroutineScope(Dispatchers.Default + parent)
+
+      val child = scope.launch {
+          try { longRunning() } finally { cleanup() }
+      }
+
+      parent.cancel()   // отменит всех потомков
+      runBlocking { child.join() }
+      ```
+
+    - **interface CoroutineScope**. Интерфейс-носитель контекста корутин. Содержит единственное свойство `coroutineContext`. Любой `CoroutineScope` может запускать корутины (`launch`, `async`), наследующие его контекст.
+
+      ```kotlin
+      class Repo(
+          private val io: CoroutineDispatcher = Dispatchers.IO
+      ) : Closeable, CoroutineScope {
+          private val job = SupervisorJob()
+          override val coroutineContext = job + io + CoroutineName("Repo")
+
+          fun warmup() = launch { cache.prefetch() }
+          override fun close() { job.cancel() }
+      }
+      ```
+
+    - **fun CoroutineScope**. Фабричная функция `CoroutineScope(context: CoroutineContext): CoroutineScope`, создающая новый скоуп на базе переданного контекста. Удобна для компонентных жизненных циклов.
+
+      ```kotlin
+      val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CoroutineName("Sync"))
+
+      scope.launch { syncAll() }
+
+      // где-то при завершении компонента:
+      scope.coroutineContext.cancel()
+      ```
 
 - #### `lifecycleScope`, `viewModelScope`, `GlobalScope`
     - **lifecycleScope**: Привязан к жизненному циклу **Activity** или **Fragment** и автоматически отменяет корутину, когда компонент уничтожается.
@@ -47,10 +99,41 @@
     - **supervisorScope**: В отличие от coroutineScope, supervisorScope позволяет дочерним корутинам завершаться независимо. Если одна дочерняя корутина завершается с исключением, supervisorScope не отменяет остальные дочерние корутины. Это полезно в ситуациях, когда необходимо обеспечить независимое выполнение дочерних корутин внутри одной области видимости.
 
 - #### `run`, `runCatching`,`runBlocking`,`runInterruptible`
-    - **run**.
-    - **runCatching**.
-    - **runBlocking**.
-    - **runInterruptible**.
+  - **run**. Синхронная scope-функция stdlib. Выполняет блок и возвращает результат. Есть форма-расширение receiver.run { ... }, где this — ресивер. Удобна для локальной инициализации и изоляции временных переменных
+    ```kotlin
+    val url = run {
+        val host = "example.com"
+        "https://$host/api"
+    }
+    
+    data class User(val name: String, var age: Int)
+    val label = User("Ana", 30).run { "$name ($age)" }
+    ```
+  - **runCatching**. Синхронная stdlib. Выполняет блок и возвращает Result<T>: Success или Failure(Throwable). Есть и как топ-левел, и как extension. Удобна для функциональной обработки ошибок без try/catch
+    ```kotlin
+    val result: Result<Int> = runCatching { risky() }
+    val value = result.getOrElse { fallback() }
+    // или с ресивером:
+    val parsed = "42".runCatching { toInt() }.getOrNull()
+    ```
+  - **runBlocking** (kotlinx.coroutines). Запускает корутину и БЛОКИРУЕТ текущий поток до завершения. Применение: мост из блокирующего к suspend-коду, обычно в main и тестах. Нельзя вызывать из suspend и UI-корутин. Риск блокировки пула потоков.
+    ```kotlin
+    fun main() = runBlocking {
+        val data = fetchSuspend()
+        println(data)
+    }
+    
+    ```
+- **runInterruptible** (kotlinx.coroutines). suspend-функция для ВЫПОЛНЕНИЯ БЛОКИРУЮЩЕГО КОДА с поддержкой прерывания через отмену корутины. При cancel() прерывает блок и кидает CancellationException. Полезна для I/O и вызовов, поддерживающих Thread.interrupt(). Можно передать контекст для выделенного диспетчера
+    ```kotlin
+    withContext(Dispatchers.IO) {
+        runInterruptible {
+            blockingChannel.readFully(buffer) // прерываемо по cancel()
+        }
+    }
+    ```
+
+
 
 ### Flow
 

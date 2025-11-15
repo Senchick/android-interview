@@ -249,3 +249,5 @@ suspend fun OkHttpClient.getBody(url: String): String =
         })
 }
 ```
+
+- #### Как бы Вы реализовали перевод синхронного кода в асинхронный с помощью Coroutines?

@@ -249,3 +249,7 @@ suspend fun OkHttpClient.getBody(url: String): String =
         })
 }
 ```
+
+- #### Как бы Вы реализовали перевод синхронного кода в асинхронный с помощью Coroutines?
+
+- #### Как бы Вы реализовали перевод группу синхронного кода в асинхронный с помощью Coroutines? (multiple requests from old okhttp to new okhttp)
